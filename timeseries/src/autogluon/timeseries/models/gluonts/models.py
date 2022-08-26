@@ -14,6 +14,7 @@ with warning_filter():
     from gluonts.model.prophet import ProphetPredictor
     from gluonts.model.seq2seq import MQCNNEstimator, MQRNNEstimator
     from gluonts.model.simple_feedforward import SimpleFeedForwardEstimator
+    from gluonts.model.tft import TemporalFusionTransformerEstimator
     from gluonts.model.transformer import TransformerEstimator
     from gluonts.mx.context import get_mxnet_context
     from gluonts.nursery.autogluon_tabular import TabularEstimator
@@ -189,6 +190,9 @@ class SimpleFeedForwardModel(AbstractGluonTSModel):
 
     gluonts_estimator_class: Type[GluonTSEstimator] = SimpleFeedForwardEstimator
 
+class TemporalFusionTransformerModel(AbstractGluonTSModel):
+    # TODO: Add docstring
+    gluonts_estimator_class: Type[GluonTSEstimator] = TemporalFusionTransformerEstimator
 
 class TransformerModel(AbstractGluonTSModel):
     """GluonTS Transformer model for forecasting, close to the one described in

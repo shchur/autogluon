@@ -1,5 +1,9 @@
 import logging
 
+logger = logging.getLogger()
+logger.info("Using local version of AGTS with SM local models + TFT")
+print("Using local version of AGTS with SM local models + TFT")
+
 from packaging.version import parse
 
 try:
@@ -24,3 +28,4 @@ from .evaluator import TimeSeriesEvaluator
 from .predictor import TimeSeriesPredictor
 
 logging.basicConfig(format="%(message)s")  # just print message in logs
+

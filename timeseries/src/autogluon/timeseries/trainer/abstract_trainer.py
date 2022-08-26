@@ -447,8 +447,9 @@ class AbstractTimeSeriesTrainer(SimpleAbstractTrainer):
                 model_hpo = self.load_model(model_hpo_name, path=model_path, model_type=type(model))
                 self._add_model(model_hpo)
                 model_names_trained.append(model_hpo.name)
-
         logger.info(f"\tTrained {len(model_names_trained)} models while tuning {model.name}.")
+        for trial, config in hpo_results["config_history"].items():
+            logger.info(f"\tT{trial+1}: {config}")
 
         # TODO: log result for ray backend
         if hpo_results and isinstance(hpo_results, dict):

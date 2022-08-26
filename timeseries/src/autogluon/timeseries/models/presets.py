@@ -14,6 +14,7 @@ from .gluonts import (
     ProphetModel,
     SimpleFeedForwardModel,
     TransformerModel,
+    TemporalFusionTransformerModel,
 )
 from .sktime import ARIMAModel, AutoARIMAModel, AutoETSModel
 from .statsmodels import StatsmodelsARIMAModel, StatsmodelsETSModel
@@ -34,6 +35,7 @@ MODEL_TYPES = dict(
     AutoETS=AutoETSModel,
     StatsmodelsETS=StatsmodelsETSModel,
     StatsmodelsARIMA=StatsmodelsARIMAModel,
+    TemporalFusionTransformer=TemporalFusionTransformerModel,
 )
 DEFAULT_MODEL_NAMES = {v: k for k, v in MODEL_TYPES.items()}
 DEFAULT_MODEL_PRIORITY = dict(
@@ -49,6 +51,7 @@ DEFAULT_MODEL_PRIORITY = dict(
     AutoETS=60,
     StatsmodelsARIMA=50,
     StatsmodelsETS=60,
+    TemporalFusionTransformer=40,
 )
 DEFAULT_CUSTOM_MODEL_PRIORITY = 0
 MINIMUM_CONTEXT_LENGTH = 10
@@ -88,8 +91,9 @@ def get_default_hps(key, prediction_length):
             "SimpleFeedForward": {
                 "context_length": context_length,
             },
-            "Transformer": {
+            "TemporalFusionTransformer": {
                 "context_length": context_length,
+                "num_outputs": 9,
             },
             "DeepAR": {
                 "context_length": context_length,
@@ -106,19 +110,20 @@ def get_default_hps(key, prediction_length):
                 "batch_normalization": ag.Categorical(True, False),
                 "context_length": context_length,
             },
-            "Transformer": {
-                "model_dim": ag.Categorical(8, 16, 32),
+            "TemporalFusionTransformer": {
+                "hidden_dim": ag.Categorical(8, 16, 32),
                 "context_length": context_length,
+                "num_outputs": 9,
             },
             "StatsmodelsETS": {
-                "error": ag.Categorical("add", "mul"),
-                "trend": ag.Categorical("add", "mul", None),
+                "error": "add",
+                "trend": ag.Categorical("add", None),
                 "seasonal": ag.Categorical("add", None),
                 "maxiter": 200,
             },
             "StatsmodelsARIMA": {
                 "maxiter": 50,
-                "order": ag.Categorical((2, 0, 1), (2, 1, 1)),
+                "order": ag.Categorical((2, 0, 1), (2, 1, 1), (1, 0, 1), (1, 1, 1), (1, 1, 0)),
                 "seasonal_order": ag.Categorical((0, 0, 0), (1, 0, 1)),
             },
         },
