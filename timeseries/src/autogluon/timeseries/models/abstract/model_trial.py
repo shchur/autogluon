@@ -46,7 +46,9 @@ def model_trial(
 
     except Exception as e:
         if not isinstance(e, TimeLimitExceeded):
-            logger.exception(e, exc_info=True)
+            # logger.exception(e, exc_info=False)
+            logger.error(f"\tWarning: Exception caused {model.name} to fail during training... Skipping this model.")
+            logger.error(f"\t{e}")
         # In case of TimeLimitExceed, val_score could be None
         hpo_executor.report(
             reporter=reporter,

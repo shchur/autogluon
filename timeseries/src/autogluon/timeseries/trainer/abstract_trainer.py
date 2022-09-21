@@ -463,6 +463,11 @@ class AbstractTimeSeriesTrainer(SimpleAbstractTrainer):
             logger.info(f"\t{hpo_results.get('total_time'):<7.2f} s".ljust(15) + "= Total tuning time")
             logger.debug(f"\tBest hyperparameter configuration: {hpo_results.get('best_config')}")
 
+            for m_name, perf in hpo_results["hpo_model_performances"].items():
+                m_idx = int(m_name.split("/T")[1])
+                conf = hpo_results["config_history"][m_idx - 1]
+                logger.info(f" - T{m_idx}: {conf}, val_score = {perf}")
+
         return model_names_trained
 
     def _train_and_save(

@@ -100,16 +100,20 @@ def get_default_hps(key, prediction_length):
         "default_hpo": {
             "DeepAR": {
                 "cell_type": ag.Categorical("gru", "lstm"),
-                "num_layers": ag.Int(1, 4),
-                "num_cells": ag.Categorical(20, 30, 40, 50),
+                "num_layers": ag.Int(1, 3),
+                "num_cells": ag.Categorical(20, 40, 60),
+                "batch_size": ag.Categorical(32, 64),
                 "context_length": context_length,
             },
             "SimpleFeedForward": {
                 "batch_normalization": ag.Categorical(True, False),
+                "num_hidden_dimensions": ag.Categorical([40], [40, 40], [120]),
+                "batch_size": ag.Categorical(32, 64),
                 "context_length": context_length,
             },
             "Transformer": {
-                "model_dim": ag.Categorical(8, 16, 32),
+                "model_dim": ag.Categorical(8, 16, 32, 48),
+                "batch_size": ag.Categorical(32, 64),
                 "context_length": context_length,
             },
             "ETS": {
@@ -120,7 +124,7 @@ def get_default_hps(key, prediction_length):
             },
             "ARIMA": {
                 "maxiter": 50,
-                "order": ag.Categorical((2, 0, 1), (2, 1, 1), (1, 1, 1)),
+                "order": ag.Categorical((2, 0, 1), (2, 1, 1), (1, 1, 1), (1, 2, 1)),
                 "seasonal_order": ag.Categorical((0, 0, 0), (1, 0, 1)),
             },
         },

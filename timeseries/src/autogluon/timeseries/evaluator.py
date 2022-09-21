@@ -15,6 +15,7 @@ from autogluon.timeseries.utils.warning_filters import evaluator_warning_filter
 logger = logging.getLogger(__name__)
 
 
+
 def in_sample_naive_1_error(*, y_history: pd.Series) -> pd.Series:
     """Compute the error of naive forecast (predict previous value) for each time series."""
     diff = y_history.diff()
@@ -121,6 +122,9 @@ class TimeSeriesEvaluator:
     def higher_is_better(self) -> bool:
         return self.coefficient > 0
 
+    def _safemean(self, data: pd.Series) -> float:
+        return data.replace([np.inf, -np.inf], np.nan).dropna().mean()
+
     def _mse(self, y_true: pd.Series, predictions: TimeSeriesDataFrame, **kwargs) -> float:
         y_pred = predictions["mean"]
         return mse_per_item(y_true=y_true, y_pred=y_pred).mean()
@@ -132,7 +136,7 @@ class TimeSeriesEvaluator:
         y_pred = self._get_median_forecast(predictions)
         mae = mae_per_item(y_true=y_true, y_pred=y_pred)
         naive_1_error = in_sample_naive_1_error(y_history=y_history)
-        return (mae / naive_1_error).mean()
+        return self._safemean(mae / naive_1_error)
 
     def _mape(self, y_true: pd.Series, predictions: TimeSeriesDataFrame, **kwargs) -> float:
         y_pred = self._get_median_forecast(predictions)
