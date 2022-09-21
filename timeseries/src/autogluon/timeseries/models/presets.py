@@ -116,6 +116,16 @@ def get_default_hps(key, prediction_length):
                 "batch_size": ag.Categorical(32, 64),
                 "context_length": context_length,
             },
+            "TemporalFusionTransformer": {
+                "hidden_dim": ag.Categorical(16, 32, 64),
+                "batch_size": ag.Categorical(32, 64),
+                "context_length": context_length,
+            },
+            "MQCNN": {
+                "channels_seq": ag.Categorical([30, 30, 30], [30, 30], [50, 50]),
+                "batch_size": ag.Categorical(32, 64),
+                "context_length": context_length,
+            },
             "ETS": {
                 "maxiter": 200,
                 "error": ag.Categorical("add", "mul"),
