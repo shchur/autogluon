@@ -65,23 +65,24 @@ if agts.SKTIME_INSTALLED:
 
 DEFAULT_MODEL_NAMES = {v: k for k, v in MODEL_TYPES.items()}
 DEFAULT_MODEL_PRIORITY = dict(
-    MQCNNMXNet=20,
-    MQRNNMXNet=20,
-    SimpleFeedForward=30,
-    SimpleFeedForwardMXNet=25,
+    Naive=100,
+    SeasonalNaive=100,
+    ETS=90,
+    Theta=90,
+    ARIMA=80,
+    AutoGluonTabular=70,
+    DeepAR=60,
+    TemporalFusionTransformerMXNet=50,
+    SimpleFeedForward=40,
     TransformerMXNet=30,
-    TemporalFusionTransformerMXNet=30,
-    DeepAR=40,
-    DeepARMXNet=30,
-    AutoARIMASktime=20,
-    ARIMASktime=50,
+    # Models below are not included in any presets
     AutoETSSktime=60,
-    ARIMA=50,
-    ETS=60,
-    Theta=60,
-    AutoGluonTabular=45,
-    Naive=70,
-    SeasonalNaive=70,
+    ARIMASktime=50,
+    DeepARMXNet=50,
+    SimpleFeedForwardMXNet=30,
+    AutoARIMASktime=20,
+    MQCNNMXNet=10,
+    MQRNNMXNet=10,
 )
 DEFAULT_CUSTOM_MODEL_PRIORITY = 0
 MINIMUM_CONTEXT_LENGTH = 10
@@ -105,9 +106,11 @@ def get_default_hps(key, prediction_length):
             "Theta": {},
             "SimpleFeedForward": {
                 "context_length": context_length,
+                "batch_size": 64,
             },
             "DeepAR": {
                 "context_length": context_length,
+                "batch_size": 64,
             },
             "AutoGluonTabular": {},
         },
@@ -115,7 +118,12 @@ def get_default_hps(key, prediction_length):
             "Naive": {},
             "SeasonalNaive": {},
             "ARIMA": {
-                "order": ag.Categorical((2, 0, 1), (2, 1, 0), (2, 1, 1), (1, 1, 1)),
+                "order": ag.Categorical(
+                    (5, 1, 1),
+                    (5, 1, 0),
+                    (2, 1, 0),
+                    (1, 1, 1),
+                ),
                 "seasonal_order": ag.Categorical((0, 0, 0), (1, 0, 0)),
             },
             "ETS": {
@@ -127,10 +135,9 @@ def get_default_hps(key, prediction_length):
                 "method": ag.Categorical("auto", "additive"),
             },
             "DeepAR": {
-                "cell_type": ag.Categorical("gru", "lstm"),
-                "num_layers": ag.Int(1, 3),
                 "num_cells": ag.Categorical(40, 80),
                 "context_length": context_length,
+                "batch_size": 64,
             },
             "SimpleFeedForward": {
                 "num_hidden_dimensions": ag.Categorical([40], [40, 40], [120]),
@@ -146,16 +153,27 @@ def get_default_hps(key, prediction_length):
             "default": {
                 "TemporalFusionTransformerMXNet": {
                     "context_length": context_length,
-                }
+                    "batch_size": 64,
+                },
+                "TransformerMXNet": {
+                    "context_length": context_length,
+                    "batch_size": 64,
+                },
+                "MQRNNMXNet": {
+                    "context_length": context_length,
+                    "batch_size": 64,
+                },
+                "DeepARMXNet": {
+                    "context_length": context_length,
+                    "batch_size": 64,
+                },
             },
             "default_hpo": {
                 "TransformerMXNet": {
-                    "model_dim": ag.Categorical(32, 64),
                     "batch_size": 64,
                     "context_length": context_length,
                 },
                 "TemporalFusionTransformerMXNet": {
-                    "hidden_dim": ag.Categorical(32, 64),
                     "batch_size": 64,
                     "context_length": context_length,
                 },
