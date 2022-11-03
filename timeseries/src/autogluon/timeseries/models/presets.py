@@ -101,7 +101,7 @@ def get_default_hps(key, prediction_length):
         "default": {
             "Naive": {},
             "SeasonalNaive": {},
-            "ARIMA": {},
+            "ARIMA": {"order": (5, 1, 1)},
             "ETS": {},
             "Theta": {},
             "SimpleFeedForward": {
@@ -156,14 +156,6 @@ def get_default_hps(key, prediction_length):
                     "batch_size": 64,
                 },
                 "TransformerMXNet": {
-                    "context_length": context_length,
-                    "batch_size": 64,
-                },
-                "MQRNNMXNet": {
-                    "context_length": context_length,
-                    "batch_size": 64,
-                },
-                "DeepARMXNet": {
                     "context_length": context_length,
                     "batch_size": 64,
                 },
