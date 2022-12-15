@@ -681,10 +681,14 @@ class AbstractTimeSeriesTrainer(SimpleAbstractTrainer):
     def fit_ensemble(
         self, val_data: TimeSeriesDataFrame, model_names: List[str], time_limit: Optional[float] = None
     ) -> str:
+        val_data_past = val_data.slice_by_timestep(None, -self.prediction_length)
+        val_data_future = val_data.slice_by_timestep(-self.prediction_length, None)
+
         evaluator = TimeSeriesEvaluator(
             eval_metric=self.eval_metric,
             prediction_length=self.prediction_length,
             target_column=self.target,
+            past_data=val_data_past,
         )
 
         logger.info("Fitting simple weighted ensemble.")
@@ -695,7 +699,7 @@ class AbstractTimeSeriesTrainer(SimpleAbstractTrainer):
 
             # FIXME: This differs from predictions made to calc val_score for the models. Try to align.
             #  Can either seed for deterministic results or cache the pred during val_score calc and reuse.
-            model_preds[model_name] = model.predict_for_scoring(data=val_data, quantile_levels=self.quantile_levels)
+            model_preds[model_name] = model.predict(data=val_data_past, quantile_levels=self.quantile_levels)
 
         time_start = time.time()
 
@@ -707,7 +711,7 @@ class AbstractTimeSeriesTrainer(SimpleAbstractTrainer):
 
         ensemble.fit(
             predictions=predictions,
-            labels=val_data,
+            labels=val_data_future,
             time_limit=time_limit,
         )
 
@@ -727,7 +731,7 @@ class AbstractTimeSeriesTrainer(SimpleAbstractTrainer):
         simple_ensemble.fit_time = time_end - time_start
 
         forecasts = simple_ensemble.predict({n: model_preds[n] for n in simple_ensemble.model_names})
-        simple_ensemble.val_score = evaluator(val_data, forecasts) * evaluator.coefficient
+        simple_ensemble.val_score = evaluator(val_data_future, forecasts) * evaluator.coefficient
 
         predict_time = 0
         # FIXME: This is a hack, should instead leverage `predict_time_marginal` as in Tabular.
@@ -845,11 +849,13 @@ class AbstractTimeSeriesTrainer(SimpleAbstractTrainer):
     ) -> float:
         model = self._get_model_for_prediction(model)
         eval_metric = self.eval_metric if metric is None else metric
+        past_data = data.slice_by_timestep(None, -self.prediction_length)
 
         if isinstance(model, TimeSeriesEnsembleWrapper):
             evaluator = TimeSeriesEvaluator(
                 eval_metric=eval_metric,
                 prediction_length=self.prediction_length,
+                past_data=past_data,
                 target_column=self.target,
             )
             model_preds = {}
