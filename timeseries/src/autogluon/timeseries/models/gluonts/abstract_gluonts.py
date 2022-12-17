@@ -429,7 +429,7 @@ class AbstractGluonTSModel(AbstractTimeSeriesModel):
             )
             result_dfs.append(df)
 
-        return TimeSeriesDataFrame.from_data_frame(pd.concat(result_dfs))
+        return TimeSeriesDataFrame(pd.concat(result_dfs))
 
     def _get_hpo_backend(self):
         return RAY_BACKEND
