@@ -13,6 +13,7 @@ from autogluon.timeseries.splitter import AbstractTimeSeriesSplitter, LastWindow
 from autogluon.timeseries.trainer import AbstractTimeSeriesTrainer, AutoTimeSeriesTrainer
 from autogluon.timeseries.utils.features import TimeSeriesFeatureGenerator
 from autogluon.timeseries.utils.forecast import get_forecast_horizon_index_ts_dataframe
+from autogluon.timeseries.models.ensemble import TimeSeriesGreedyEnsemble
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class TimeSeriesLearner(AbstractLearner):
         prediction_length: int = 1,
         validation_splitter: AbstractTimeSeriesSplitter = LastWindowSplitter(),
         ignore_time_index: bool = False,
+        ensemble_model_type=TimeSeriesGreedyEnsemble,
         **kwargs,
     ):
         super().__init__(path_context=path_context)
@@ -46,6 +48,7 @@ class TimeSeriesLearner(AbstractLearner):
         )
         self.validation_splitter = validation_splitter
         self.ignore_time_index = ignore_time_index
+        self.ensemble_model_type = ensemble_model_type
 
         self.feature_generator = TimeSeriesFeatureGenerator(
             target=self.target, known_covariates_names=self.known_covariates_names
@@ -121,6 +124,7 @@ class TimeSeriesLearner(AbstractLearner):
                 verbosity=kwargs.get("verbosity", 2),
                 enable_ensemble=kwargs.get("enable_ensemble", True),
                 metadata=self.feature_generator.covariate_metadata,
+                ensemble_model_type=self.ensemble_model_type,
             )
         )
         self.trainer = self.trainer_type(**trainer_init_kwargs)

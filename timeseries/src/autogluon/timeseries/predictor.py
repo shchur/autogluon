@@ -19,6 +19,7 @@ from autogluon.timeseries.learner import AbstractLearner, TimeSeriesLearner
 from autogluon.timeseries.splitter import AbstractTimeSeriesSplitter, LastWindowSplitter, MultiWindowSplitter
 from autogluon.timeseries.trainer import AbstractTimeSeriesTrainer
 from autogluon.timeseries.utils.random import set_random_seed
+from autogluon.timeseries.models.ensemble import TimeSeriesGreedyEnsemble
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +175,7 @@ class TimeSeriesPredictor:
             )
 
         learner_type = kwargs.pop("learner_type", TimeSeriesLearner)
+        ensemble_model_type = kwargs.pop("ensemble_model_type", TimeSeriesGreedyEnsemble)
         learner_kwargs = kwargs.pop("learner_kwargs", dict())
         learner_kwargs = learner_kwargs.copy()
         learner_kwargs.update(
@@ -186,6 +188,7 @@ class TimeSeriesPredictor:
                 quantile_levels=self.quantile_levels,
                 validation_splitter=splitter,
                 ignore_time_index=ignore_time_index,
+                ensemble_model_type=ensemble_model_type,
             )
         )
         self._learner: AbstractLearner = learner_type(**learner_kwargs)

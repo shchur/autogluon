@@ -122,6 +122,7 @@ class AbstractLocalModel(AbstractTimeSeriesModel):
                 )
             for item_id, preds in zip(items_to_fit, predictions):
                 self._cached_predictions[data_hash.loc[item_id]] = preds
+        self.save()
 
     @staticmethod
     def _predict_with_local_model(

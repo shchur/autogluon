@@ -80,6 +80,7 @@ class TimeSeriesGreedyEnsemble(AbstractTimeSeriesEnsembleModel):
         time_limit: Optional[int] = None,
         **kwargs,
     ):
+        logger.info(f"Fitting {self.__class__.__name__} ensemble")
         evaluator = TimeSeriesEvaluator(
             eval_metric=self.eval_metric,
             prediction_length=self.prediction_length,
@@ -95,6 +96,9 @@ class TimeSeriesGreedyEnsemble(AbstractTimeSeriesEnsembleModel):
         for model_name, weight in zip(predictions.keys(), ensemble_selection.weights_):
             if weight != 0:
                 self.model_to_weight[model_name] = weight
+        logger.debug(f"Time series ensemble weights: {self.model_to_weight}")
+        # TODO
+        print(f"Greedy ensemble weights: {self.model_to_weight}")
 
     @property
     def model_names(self) -> List[str]:

@@ -18,7 +18,11 @@ from autogluon.core.utils.loaders import load_pkl
 from autogluon.core.utils.savers import save_json, save_pkl
 from autogluon.timeseries import TimeSeriesDataFrame, TimeSeriesEvaluator
 from autogluon.timeseries.models.abstract import AbstractTimeSeriesModel
-from autogluon.timeseries.models.ensemble import AbstractTimeSeriesEnsembleModel, TimeSeriesGreedyEnsemble
+from autogluon.timeseries.models.ensemble import (
+    AbstractTimeSeriesEnsembleModel,
+    TimeSeriesGreedyEnsemble,
+    TimeSeriesWeightedEnsemble,
+)
 from autogluon.timeseries.models.gluonts.abstract_gluonts import AbstractGluonTSModel
 from autogluon.timeseries.models.presets import contains_searchspace
 from autogluon.timeseries.utils.features import CovariateMetadata
@@ -276,6 +280,8 @@ class AbstractTimeSeriesTrainer(SimpleAbstractTrainer):
         save_data: bool = True,
         enable_ensemble: bool = True,
         verbosity: int = 2,
+        # ensemble_model_type = TimeSeriesGreedyEnsemble,
+        ensemble_model_type=TimeSeriesWeightedEnsemble,
         **kwargs,
     ):
         super().__init__(path=path, save_data=save_data, low_memory=True, **kwargs)
@@ -289,7 +295,7 @@ class AbstractTimeSeriesTrainer(SimpleAbstractTrainer):
         self.metadata = kwargs.get("metadata", CovariateMetadata())
         self.is_data_saved = False
         self.enable_ensemble = enable_ensemble
-        self.ensemble_model_type = TimeSeriesGreedyEnsemble
+        self.ensemble_model_type = ensemble_model_type
 
         self.verbosity = verbosity
         set_logger_verbosity(self.verbosity, logger=logger)
