@@ -16,6 +16,7 @@ from . import (
     NaiveModel,
     SeasonalNaiveModel,
     SimpleFeedForwardModel,
+    STLARModel,
     ThetaModel,
 )
 from .abstract import AbstractTimeSeriesModel, AbstractTimeSeriesModelFactory
@@ -30,6 +31,7 @@ MODEL_TYPES = dict(
     ETS=ETSModel,
     ARIMA=ARIMAModel,
     Theta=ThetaModel,
+    STLAR=STLARModel,
     AutoGluonTabular=AutoGluonTabularModel,
     Naive=NaiveModel,
     SeasonalNaive=SeasonalNaiveModel,

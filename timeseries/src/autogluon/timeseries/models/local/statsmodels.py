@@ -346,3 +346,87 @@ class ThetaModel(AbstractLocalModel):
         coverage_fn = lambda alpha: fit_result.prediction_intervals(steps=prediction_length, alpha=alpha)
         results += get_quantiles_from_statsmodels(coverage_fn=coverage_fn, quantile_levels=quantile_levels)
         return pd.concat(results, axis=1)
+
+
+class STLARModel(AbstractLocalModel):
+    """STL decomposition followed by an AR model.
+
+    First, STL decomposes the time series into the three components: trend, seasonality and residuals. Then, AR model
+    is fitted to the residuals.
+
+    Based on `statsmodels.tsa.forecasting.stl.STLForecast <https://www.statsmodels.org/dev/generated/statsmodels.tsa.forecasting.stl.STLForecast.html>`_.
+
+    Our implementation contains several improvements over the Statsmodels version, such
+    as multi-CPU training and reducing the disk usage when saving models.
+
+
+    Other Parameters
+    ----------------
+    order: Tuple[int, int, int], default = (2, 0, 0)
+        The (p, d, q) order of the model for the number of AR parameters, differences, and MA parameters used by the
+        underlying ARIMA model.
+    seasonal_period : int or None, default = None
+        Number of time steps in a complete seasonal cycle for seasonal models. For example, 7 for daily data with a
+        weekly cycle or 12 for monthly data with an annual cycle.
+        When set to None, seasonal_period will be inferred from the frequency of the training data. Can also be
+        specified manually by providing an integer > 1.
+        If seasonal_period (inferred or provided) is equal to 1, seasonality will be disabled.
+        Seasonality will also be disabled, if the length of the time series is < 2 * seasonal_period.
+    n_jobs : int or float, default = 0.5
+        Number of CPU cores used to fit the models in parallel.
+        When set to a float between 0.0 and 1.0, that fraction of available CPU cores is used.
+        When set to a positive integer, that many cores are used.
+        When set to -1, all CPU cores are used.
+    """
+
+    allowed_local_model_args = [
+        "seasonal_period",
+        "order",
+        "trend_deg",
+    ]
+
+    def _update_local_model_args(
+        self, local_model_args: Dict[str, Any], data: TimeSeriesDataFrame, **kwargs
+    ) -> Dict[str, Any]:
+        local_model_args.setdefault("trend_deg", 1)
+        seasonal_period = local_model_args.pop("seasonal_period")
+        local_model_args["period"] = seasonal_period
+
+        # Arguments passed to the underlying ARIMA model
+        order = local_model_args.pop("order", (2, 0, 0))
+        local_model_args["model_kwargs"] = {
+            "order": order,
+            "freq": self.freq,
+            "enforce_stationarity": False,
+        }
+
+        return local_model_args
+
+    @staticmethod
+    def _predict_with_local_model(
+        time_series: pd.Series,
+        freq: str,
+        prediction_length: int,
+        quantile_levels: List[float],
+        local_model_args: dict,
+        **kwargs,
+    ) -> pd.DataFrame:
+        from statsmodels.tsa.arima.model import ARIMA
+        from statsmodels.tsa.forecasting.stl import STLForecast
+
+        with statsmodels_warning_filter():
+            model = STLForecast(
+                endog=time_series,
+                model=ARIMA,
+                **local_model_args,
+            )
+            fit_result = model.fit()
+            predictions = fit_result.get_prediction(
+                start=len(time_series),
+                end=len(time_series) + prediction_length - 1,
+            )
+
+        results = [predictions.predicted_mean.rename("mean")]
+        coverage_fn = lambda alpha: predictions.conf_int(alpha=alpha)
+        results += get_quantiles_from_statsmodels(coverage_fn=coverage_fn, quantile_levels=quantile_levels)
+        return pd.concat(results, axis=1)

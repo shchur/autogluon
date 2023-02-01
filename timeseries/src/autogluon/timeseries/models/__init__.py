@@ -8,6 +8,7 @@ from .local import (
     ETSModel,
     NaiveModel,
     SeasonalNaiveModel,
+    STLARModel,
     ThetaModel,
 )
 
@@ -16,6 +17,7 @@ __all__ = [
     "SimpleFeedForwardModel",
     "ARIMAModel",
     "ETSModel",
+    "STLARModel",
     "ThetaModel",
     "AutoGluonTabularModel",
     "NaiveModel",
