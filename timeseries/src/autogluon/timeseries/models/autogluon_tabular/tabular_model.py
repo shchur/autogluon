@@ -15,6 +15,7 @@ import autogluon.core as ag
 from autogluon.tabular import TabularPredictor
 from autogluon.timeseries.dataset.ts_dataframe import ITEMID, TIMESTAMP, TimeSeriesDataFrame
 from autogluon.timeseries.models.abstract import AbstractTimeSeriesModel
+from autogluon.timeseries.utils.forecast import get_forecast_horizon_index_ts_dataframe
 
 logger = logging.getLogger(__name__)
 
@@ -340,28 +341,32 @@ class AutoGluonTabularModel(AbstractTimeSeriesModel):
         # Logger level is changed inside .fit(), restore to the initial value
         autogluon_logger.setLevel(logging_level)
 
-    def _extend_index(self, data: TimeSeriesDataFrame) -> TimeSeriesDataFrame:
+    def _extend_index(
+        self, data: TimeSeriesDataFrame, known_covariates: Optional[TimeSeriesDataFrame] = None
+    ) -> TimeSeriesDataFrame:
         """Add self.prediction_length many time steps with dummy values to each timeseries in the dataset."""
 
-        def extend_single_time_series(group):
-            offset = pd.tseries.frequencies.to_offset(data.freq)
-            cutoff = group.index.get_level_values(TIMESTAMP)[-1]
-            new_index = pd.date_range(cutoff + offset, freq=offset, periods=self.prediction_length).rename(TIMESTAMP)
-            new_values = np.full([self.prediction_length], fill_value=np.nan)
-            new_df = pd.DataFrame(new_values, index=new_index, columns=[self.target])
-            return pd.concat([group.droplevel(ITEMID), new_df])
+        if known_covariates is None:
+            future_index = get_forecast_horizon_index_ts_dataframe(data, self.prediction_length)
+            known_covariates = pd.DataFrame(columns=data.columns, index=future_index)
 
-        extended_data = data.groupby(level=ITEMID, sort=False).apply(extend_single_time_series)
+        extended_data = pd.concat([data, known_covariates])
         extended_data.static_features = data.static_features
         return extended_data
 
-    def predict(self, data: TimeSeriesDataFrame, quantile_levels: List[float] = None, **kwargs) -> TimeSeriesDataFrame:
+    def predict(
+        self,
+        data: TimeSeriesDataFrame,
+        quantile_levels: List[float] = None,
+        known_covariates: Optional[TimeSeriesDataFrame] = None,
+        **kwargs,
+    ) -> TimeSeriesDataFrame:
         self._check_predict_inputs(data=data, quantile_levels=quantile_levels)
         if quantile_levels is None:
             quantile_levels = self.quantile_levels
 
         data, scale_per_item = self._normalize_targets(data)
-        data_extended = self._extend_index(data)
+        data_extended = self._extend_index(data, known_covariates=known_covariates)
         features = self._get_features_dataframe(data_extended, max_rows_per_item=self.prediction_length)
         features = features[self._available_features]
 

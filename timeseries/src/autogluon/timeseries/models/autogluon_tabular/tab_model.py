@@ -89,6 +89,7 @@ class AbstractTabularModel(AbstractTimeSeriesModel):
         self._known_covariates_lag_indices = np.concatenate([[0], self._target_lag_indices])
         self._time_features = time_features_from_frequency_str(train_data.freq)
 
+        train_data, _ = self._apply_scaling(train_data)
         train_df = self._get_features_dataframe(
             train_data,
             static_features=train_data.static_features,
@@ -111,6 +112,7 @@ class AbstractTabularModel(AbstractTimeSeriesModel):
                 raise ValueError(
                     f"train_data and val_data must have the same freq (received {train_data.freq} and {val_data.freq})"
                 )
+            val_data, _ = self._apply_scaling(val_data)
             val_df = self._get_features_dataframe(
                 val_data,
                 static_features=val_data.static_features,
@@ -267,16 +269,28 @@ class AbstractTabularModel(AbstractTimeSeriesModel):
             See the docstring of get_lags for the description of the parameters.
             """
             # TODO: Expose n_jobs to the user as a hyperparameter
-            lags_per_item = Parallel(n_jobs=num_cpus)(
-                delayed(get_lags)(
-                    ts,
-                    lag_indices,
-                    prediction_length=prediction_length,
-                    last_k_values=last_k_values,
-                    mask=mask,
+            if num_cpus == 1:
+                lags_per_item = [
+                    get_lags(
+                        ts,
+                        lag_indices,
+                        prediction_length=prediction_length,
+                        last_k_values=last_k_values,
+                        mask=mask,
+                    )
+                    for ts in all_series
+                ]
+            else:
+                lags_per_item = Parallel(n_jobs=num_cpus)(
+                    delayed(get_lags)(
+                        ts,
+                        lag_indices,
+                        prediction_length=prediction_length,
+                        last_k_values=last_k_values,
+                        mask=mask,
+                    )
+                    for ts in all_series
                 )
-                for ts in all_series
-            )
             features = np.concatenate(lags_per_item)
             return pd.DataFrame(features, columns=[f"{name}_lag_{idx}" for idx in lag_indices])
 
@@ -334,11 +348,9 @@ class AbstractTabularModel(AbstractTimeSeriesModel):
         known_covariates: Optional[TimeSeriesDataFrame] = None,
         **kwargs,
     ) -> TimeSeriesDataFrame:
-        # if self.difference:
-        #     data = self._apply_differencing(data)
-        predictions = self._predict_core(data, known_covariates=known_covariates)
-        # if self.difference:
-        #     predictions = self._undo_differencing(predictions, data)
+        normalized_data, scale_per_item = self._apply_scaling(data)
+        predictions = self._predict_core(normalized_data, known_covariates=known_covariates)
+        predictions = self._undo_scaling(predictions, scale_per_item)
         return self._postprocess_predictions(predictions)
 
     def _predict_core(
@@ -347,6 +359,19 @@ class AbstractTabularModel(AbstractTimeSeriesModel):
         known_covariates: Optional[TimeSeriesDataFrame] = None,
     ) -> TimeSeriesDataFrame:
         raise NotImplementedError
+
+    def _apply_scaling(self, data: TimeSeriesDataFrame) -> Tuple[TimeSeriesDataFrame, pd.Series]:
+        # scale_per_item = data[self.target].abs().groupby(level=ITEMID, sort=False).mean()
+        # normalized_data = data.copy()
+        # normalized_data[self.target] = normalized_data[self.target] / scale_per_item
+        # return normalized_data, scale_per_item
+        return data, None
+
+    def _undo_scaling(self, normalized_data: TimeSeriesDataFrame, scale_per_item: pd.Series) -> TimeSeriesDataFrame:
+        data = normalized_data
+        # for col in data.columns:
+        #     data[col] = data[col] * scale_per_item
+        return data
 
     def _extend_index(
         self, data: TimeSeriesDataFrame, known_covariates: Optional[TimeSeriesDataFrame] = None
@@ -388,17 +413,20 @@ class AutoregressiveTabularModel(AbstractTabularModel):
         **kwargs,
     ) -> None:
         train_data = self._apply_differencing(train_data)
+        train_data.groupby(level="item_id", sort=False).diff().abs().groupby(level="item_id", sort=False).mean()
         if val_data is not None:
             val_data = self._apply_differencing(val_data)
         return super()._fit(train_data=train_data, val_data=val_data, time_limit=time_limit, **kwargs)
 
     def _apply_differencing(self, data: TimeSeriesDataFrame) -> TimeSeriesDataFrame:
-        diffs = data.groupby(level=ITEMID, sort=False).diff(1)
-        # Keep the first value of each series to restore the original values afterwards
-        return diffs.fillna(data)
+        # diffs = data.groupby(level=ITEMID, sort=False).diff(1)
+        # # Keep the first value of each series to restore the original values afterwards
+        # return diffs.fillna(data)
+        return data
 
     def _undo_differencing(self, data_extended: TimeSeriesDataFrame) -> TimeSeriesDataFrame:
-        return data_extended.groupby(level=ITEMID, sort=False).cumsum()
+        # return data_extended.groupby(level=ITEMID, sort=False).cumsum()
+        return data_extended
 
     def _predict_core(
         self,
@@ -418,6 +446,7 @@ class AutoregressiveTabularModel(AbstractTabularModel):
                 static_features=data.static_features,
                 masked=self.features_are_masked,
                 last_k_values=1,
+                num_cpus=1,
             )
             features = features[self._available_features]
             predictions_for_step = self.tabular_predictor.predict(features)
