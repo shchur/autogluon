@@ -44,7 +44,6 @@ class AutoGluonTabularModel(AbstractTimeSeriesModel):
     """
 
     default_tabular_hyperparameters = {
-        "XGB": {},
         "CAT": {},
         "GBM": {},
     }
