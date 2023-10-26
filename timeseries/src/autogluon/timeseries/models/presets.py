@@ -123,6 +123,7 @@ def get_default_hps(key):
             "AutoETS": {},
             "AutoARIMA": {},
             "Theta": {},
+            "NPTS": {},
             # TODO: Define separate model for each tabular submodel?
             "RecursiveTabular": {
                 "tabular_hyperparameters": {
