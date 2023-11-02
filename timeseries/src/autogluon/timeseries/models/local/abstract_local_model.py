@@ -195,7 +195,7 @@ def seasonal_naive_forecast(
 ) -> pd.DataFrame:
     """Generate seasonal naive forecast, predicting the last observed value from the same period."""
     forecast = {}
-    if len(target) > seasonal_period and seasonal_period > 1:
+    if len(target) > seasonal_period + 1 and seasonal_period > 1:
         indices = [len(target) - seasonal_period + k % seasonal_period for k in range(prediction_length)]
         forecast["mean"] = target[indices]
         residuals = target[seasonal_period:] - target[:-seasonal_period]

@@ -248,7 +248,7 @@ class AbstractGluonTSModel(AbstractTimeSeriesModel):
         init_args.setdefault("batch_size", 64)
         init_args.setdefault("context_length", self.default_context_length)
         init_args.setdefault("predict_batch_size", 500)
-        init_args.setdefault("early_stopping_patience", 20)
+        init_args.setdefault("early_stopping_patience", None)
         init_args.update(
             dict(
                 freq=self.freq,
