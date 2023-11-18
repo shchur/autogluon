@@ -166,6 +166,19 @@ class AbstractMLForecastModel(AbstractTimeSeriesModel):
         logger.debug(f"Shortening all series to at most {max_length}")
         return mlforecast_df.groupby(MLF_ITEMID, as_index=False, sort=False).tail(max_length)
 
+    def _add_scale_as_static_feature(self, data):
+        scale_features = (
+            data[self.target]
+            .groupby(ITEMID, sort=False)
+            .agg(["mean", "std"])
+            .rename(columns={"mean": "_mean", "std": "_scale"})
+        )
+        if data.static_features is None:
+            data.static_features = scale_features
+        else:
+            data.static_features = pd.concat([data.static_features, scale_features], axis=1)
+        return data
+
     def _generate_train_val_dfs(
         self, data: TimeSeriesDataFrame, max_num_items: Optional[int] = None, max_num_samples: Optional[int] = None
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -246,6 +259,8 @@ class AbstractMLForecastModel(AbstractTimeSeriesModel):
         **kwargs,
     ) -> None:
         from mlforecast import MLForecast
+
+        train_data = self._add_scale_as_static_feature(train_data)
 
         self._check_fit_params()
         set_logger_verbosity(verbosity, logger=logger)
@@ -430,6 +445,8 @@ class DirectTabularModel(AbstractMLForecastModel):
         known_covariates: Optional[TimeSeriesDataFrame] = None,
         **kwargs,
     ) -> TimeSeriesDataFrame:
+        data = self._add_scale_as_static_feature(data)
+
         original_item_id_order = data.item_ids
         data, known_covariates, forecast_for_short_series = self._remove_short_ts_and_generate_fallback_forecast(
             data=data, known_covariates=known_covariates
@@ -552,6 +569,8 @@ class RecursiveTabularModel(AbstractMLForecastModel):
         known_covariates: Optional[TimeSeriesDataFrame] = None,
         **kwargs,
     ) -> TimeSeriesDataFrame:
+        data = self._add_scale_as_static_feature(data)
+
         original_item_id_order = data.item_ids
         data, known_covariates, forecast_for_short_series = self._remove_short_ts_and_generate_fallback_forecast(
             data=data, known_covariates=known_covariates
