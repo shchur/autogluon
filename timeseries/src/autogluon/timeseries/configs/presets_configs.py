@@ -4,7 +4,7 @@
 # TODO: add refit_full arguments once refitting is available
 
 TIMESERIES_PRESETS_CONFIGS = dict(
-    best_quality={"hyperparameters": "default", "num_val_windows": 2},
+    best_quality={"hyperparameters": "default", "num_val_windows": 2, "refit_every_n_windows": 2},
     high_quality={"hyperparameters": "default"},
     medium_quality={"hyperparameters": "light"},
     fast_training={"hyperparameters": "very_light"},
