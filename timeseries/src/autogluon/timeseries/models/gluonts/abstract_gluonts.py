@@ -283,7 +283,7 @@ class AbstractGluonTSModel(AbstractTimeSeriesModel):
         init_args = self._get_estimator_init_args()
 
         default_trainer_kwargs = {
-            "limit_val_batches": 5,  # limit in case GluonTS ships a fix for https://github.com/awslabs/gluonts/issues/3059
+            "limit_val_batches": 10,
             "max_epochs": init_args["max_epochs"],
             "callbacks": init_args["callbacks"],
             "enable_progress_bar": False,
@@ -319,7 +319,7 @@ class AbstractGluonTSModel(AbstractTimeSeriesModel):
 
     def _to_gluonts_dataset(
         self, time_series_df: Optional[TimeSeriesDataFrame], known_covariates: Optional[TimeSeriesDataFrame] = None
-    ) -> Optional[GluonTSDataset]:
+    ) -> List[Dict[str, Any]]:
         if time_series_df is not None:
             # TODO: Preprocess real-valued features with StdScaler?
             if self.num_feat_static_cat > 0:
@@ -355,15 +355,17 @@ class AbstractGluonTSModel(AbstractTimeSeriesModel):
             else:
                 past_feat_dynamic_real = None
 
-            return SimpleGluonTSDataset(
-                target_df=time_series_df,
-                target_column=self.target,
-                feat_static_cat=feat_static_cat,
-                feat_static_real=feat_static_real,
-                feat_dynamic_real=feat_dynamic_real,
-                past_feat_dynamic_real=past_feat_dynamic_real,
-                includes_future=known_covariates is not None,
-                prediction_length=self.prediction_length,
+            return list(
+                SimpleGluonTSDataset(
+                    target_df=time_series_df,
+                    target_column=self.target,
+                    feat_static_cat=feat_static_cat,
+                    feat_static_real=feat_static_real,
+                    feat_dynamic_real=feat_dynamic_real,
+                    past_feat_dynamic_real=past_feat_dynamic_real,
+                    includes_future=known_covariates is not None,
+                    prediction_length=self.prediction_length,
+                )
             )
         else:
             return None
@@ -406,7 +408,6 @@ class AbstractGluonTSModel(AbstractTimeSeriesModel):
             self.gts_predictor = estimator.train(
                 self._to_gluonts_dataset(train_data),
                 validation_data=self._to_gluonts_dataset(val_data),
-                cache_data=True,
             )
             # Increase batch size during prediction to speed up inference
             if init_args["predict_batch_size"] is not None:
