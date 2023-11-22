@@ -283,6 +283,7 @@ class AbstractGluonTSModel(AbstractTimeSeriesModel):
         init_args = self._get_estimator_init_args()
 
         default_trainer_kwargs = {
+            "limit_val_batches": 5,  # limit in case GluonTS ships a fix for https://github.com/awslabs/gluonts/issues/3059
             "max_epochs": init_args["max_epochs"],
             "callbacks": init_args["callbacks"],
             "enable_progress_bar": False,
