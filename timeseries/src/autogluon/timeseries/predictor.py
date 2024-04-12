@@ -666,6 +666,10 @@ class TimeSeriesPredictor(TimeSeriesPredictorDeprecatedMixin):
         if hyperparameters is None:
             hyperparameters = "default"
 
+        logger.warning("======================================")
+        logger.warning("USING CODE VERSION FROM CORRECT BRANCH")
+        logger.warning("======================================")
+
         fit_args = dict(
             prediction_length=self.prediction_length,
             target=self.target,
