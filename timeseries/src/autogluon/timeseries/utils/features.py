@@ -73,7 +73,7 @@ class ContinuousAndCategoricalFeatureGenerator(PipelineFeatureGenerator):
     Imputes missing categorical features with the most frequent value in the training set.
     """
 
-    def __init__(self, verbosity: int = 0, minimum_cat_count=2, float_dtype: str = "float32", **kwargs):
+    def __init__(self, verbosity: int = 0, minimum_cat_count=2, float_dtype: str = "float64", **kwargs):
         generators = [
             CategoryFeatureGenerator(minimum_cat_count=minimum_cat_count, fillna="mode"),
             IdentityFeatureGenerator(infer_features_in_args={"valid_raw_types": [R_INT, R_FLOAT]}),
