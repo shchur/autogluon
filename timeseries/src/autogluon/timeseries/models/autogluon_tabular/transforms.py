@@ -13,7 +13,7 @@ from autogluon.timeseries.dataset.ts_dataframe import (
     TIMESTAMP,
     TimeSeriesDataFrame,
 )
-from autogluon.timeseries.transforms.scaler import LocalTargetScaler, get_target_scaler
+from autogluon.timeseries.scaler import LocalTargetScaler, get_target_scaler
 
 from .utils import MLF_ITEMID, MLF_TIMESTAMP
 

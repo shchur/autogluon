@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from autogluon.timeseries.models import NaiveModel
-from autogluon.timeseries.transforms.scaler import (
+from autogluon.timeseries.scaler import (
     AVAILABLE_SCALERS,
     LocalMeanAbsScaler,
     LocalMinMaxScaler,
@@ -65,7 +65,7 @@ def test_when_model_fits_then_fit_transform_called_as_many_times_as_expected(mod
         },
     )
     with mock.patch(
-        "autogluon.timeseries.transforms.scaler.LocalTargetScaler.fit_transform",
+        "autogluon.timeseries.scaler.LocalTargetScaler.fit_transform",
         side_effect=lambda x: x,
     ) as scaler_fit_transform:
         model.fit(train_data=data)
@@ -86,7 +86,7 @@ def test_when_model_predicts_then_fit_transform_called_once(model_class):
     )
     model.fit(train_data=data)
     with mock.patch(
-        "autogluon.timeseries.transforms.scaler.LocalTargetScaler.fit_transform",
+        "autogluon.timeseries.scaler.LocalTargetScaler.fit_transform",
         side_effect=lambda x: x,
     ) as scaler_fit_transform:
         model.predict(data)

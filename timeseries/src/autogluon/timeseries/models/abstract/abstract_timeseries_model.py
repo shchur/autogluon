@@ -5,6 +5,8 @@ import time
 from contextlib import nullcontext
 from typing import Dict, List, Optional, Union
 
+import pandas as pd
+
 from autogluon.common import space
 from autogluon.common.loaders import load_pkl
 from autogluon.common.savers import save_pkl
@@ -13,8 +15,10 @@ from autogluon.core.hpo.executors import HpoExecutor, RayHpoExecutor
 from autogluon.core.models import AbstractModel
 from autogluon.timeseries.dataset import TimeSeriesDataFrame
 from autogluon.timeseries.metrics import TimeSeriesScorer, check_get_evaluation_metric
-from autogluon.timeseries.transforms import LocalTargetScaler, get_target_scaler
+from autogluon.timeseries.regressor import CovariatesRegressor
+from autogluon.timeseries.scaler import LocalTargetScaler, get_target_scaler
 from autogluon.timeseries.utils.features import CovariateMetadata
+from autogluon.timeseries.utils.forecast import get_forecast_horizon_index_ts_dataframe
 from autogluon.timeseries.utils.warning_filters import disable_stdout, warning_filter
 
 from .model_trial import model_trial, skip_hpo
@@ -208,7 +212,11 @@ class AbstractTimeSeriesModel(AbstractModel):
         return info
 
     def fit(
-        self, train_data: TimeSeriesDataFrame, val_data: Optional[TimeSeriesDataFrame] = None, **kwargs
+        self,
+        train_data: TimeSeriesDataFrame,
+        val_data: Optional[TimeSeriesDataFrame] = None,
+        time_limit: Optional[float] = None,
+        **kwargs,
     ) -> "AbstractTimeSeriesModel":
         """Fit timeseries model.
 
@@ -243,17 +251,30 @@ class AbstractTimeSeriesModel(AbstractModel):
         model: AbstractTimeSeriesModel
             The fitted model object
         """
+        start_time = time.monotonic()
         self.initialize(**kwargs)
         self.target_scaler = self._get_target_scaler()
         if self.target_scaler is not None:
             train_data = self.target_scaler.fit_transform(train_data)
 
+        self.covariates_regressor = self._get_covariates_regressor()
+        if self.covariates_regressor is not None:
+            train_data = self.covariates_regressor.fit_transform(
+                train_data,
+                time_limit=None if time_limit is None else 0.8 * time_limit,
+            )
+
         train_data = self.preprocess(train_data, is_train=True)
         if self._get_tags()["can_use_val_data"] and val_data is not None:
             if self.target_scaler is not None:
                 val_data = self.target_scaler.transform(val_data)
+            if self.covariates_regressor is not None:
+                val_data = self.covariates_regressor.transform(val_data)
             val_data = self.preprocess(val_data, is_train=False)
-        return super().fit(train_data=train_data, val_data=val_data, **kwargs)
+
+        if time_limit is not None:
+            time_limit = time_limit - (time.monotonic() - start_time)
+        return super().fit(train_data=train_data, val_data=val_data, time_limit=time_limit, **kwargs)
 
     @property
     def allowed_hyperparameters(self) -> List[str]:
@@ -262,9 +283,16 @@ class AbstractTimeSeriesModel(AbstractModel):
 
     def _get_target_scaler(self) -> Optional[LocalTargetScaler]:
         # TODO: Add support for custom target transforms (e.g., Box-Cox, log1p, ...)
-        target_scaler_type = self._get_model_params().get("target_scaler")
-        if target_scaler_type is not None:
-            return get_target_scaler(target_scaler_type, target=self.target)
+        target_scaler_name = self._get_model_params().get("target_scaler")
+        if target_scaler_name is not None:
+            return get_target_scaler(target_scaler_name, target=self.target)
+        else:
+            return None
+
+    def _get_covariates_regressor(self) -> Optional[CovariatesRegressor]:
+        covariates_regressor_name = self._get_model_params().get("covariates_regressor")
+        if covariates_regressor_name is not None and len(self.metadata.all_features) > 0:
+            return CovariatesRegressor(covariates_regressor_name, target=self.target, metadata=self.metadata)
         else:
             return None
 
@@ -324,16 +352,38 @@ class AbstractTimeSeriesModel(AbstractModel):
         if self.target_scaler is not None:
             data = self.target_scaler.fit_transform(data)
 
+        if self.covariates_regressor is not None:
+            if self.covariates_regressor.refit_during_predict:
+                data = self.covariates_regressor.fit_transform(data)
+            else:
+                data = self.covariates_regressor.transform(data)
+
         data = self.preprocess(data, is_train=False)
         known_covariates = self.preprocess_known_covariates(known_covariates)
+
+        # FIXME: Avoid copying covariates_regressor across processes if self._predict uses joblib.
+        # FIXME: The clean solution is to convert all methods executed in parallel to @classmethod
+        covariates_regressor = self.covariates_regressor
+        self.covariates_regressor = None
         predictions = self._predict(data=data, known_covariates=known_covariates, **kwargs)
-        logger.debug(f"Predicting with model {self.name}")
+        self.covariates_regressor = covariates_regressor
+
         # "0.5" might be missing from the quantiles if self is a wrapper (MultiWindowBacktestingModel or ensemble)
         if "0.5" in predictions.columns:
             if self.eval_metric.optimized_by_median:
                 predictions["mean"] = predictions["0.5"]
             if self.must_drop_median:
                 predictions = predictions.drop("0.5", axis=1)
+
+        if self.covariates_regressor is not None:
+            if known_covariates is None:
+                forecast_index = get_forecast_horizon_index_ts_dataframe(
+                    data, prediction_length=self.prediction_length, freq=self.freq
+                )
+                known_covariates = pd.DataFrame(index=forecast_index, dtype="float32")
+            predictions = self.covariates_regressor.inverse_transform(
+                predictions, known_covariates=known_covariates, static_features=data.static_features
+            )
 
         if self.target_scaler is not None:
             predictions = self.target_scaler.inverse_transform(predictions)
