@@ -160,7 +160,10 @@ class TimeSeriesScorer:
 
     @staticmethod
     def _safemean(array: Union[np.ndarray, pd.Series]) -> float:
-        """Compute mean of a numpy array-like object, ignoring inf, -inf and nan values."""
+        """Compute mean of a numpy array-like object, ignoring inf, -inf and nan values.
+
+        If all values are inf, -inf or nan, then the return value will be nan.
+        """
         return np.mean(array[np.isfinite(array)])
 
     @staticmethod

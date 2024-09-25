@@ -40,9 +40,13 @@ class WQL(TimeSeriesScorer):
         values_true = y_true.values[:, None]  # shape [N, 1]
         values_pred = q_pred.values  # shape [N, len(quantile_levels)]
 
+        abs_target_sum = y_true.abs().sum()
+        if abs_target_sum == 0:
+            return float("nan")
+
         return 2 * np.mean(
             np.nansum(np.abs((values_true - values_pred) * ((values_true <= values_pred) - quantile_levels)), axis=0)
-            / np.nansum(np.abs(values_true))
+            / abs_target_sum
         )
 
 

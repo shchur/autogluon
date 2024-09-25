@@ -326,3 +326,16 @@ def test_when_better_predictions_passed_to_metric_then_score_improves(metric_nam
     good_score = eval_metric.score(data, predictions + 1, prediction_length=prediction_length)
     bad_score = eval_metric.score(data, predictions + 50, prediction_length=prediction_length)
     assert good_score > bad_score
+
+
+@pytest.mark.parametrize("metric_name", AVAILABLE_METRICS)
+def test_when_target_is_all_zeros_then_metric_value_is_not_inf(metric_name):
+    prediction_length = 5
+    eval_metric = check_get_evaluation_metric(metric_name)
+    data = DUMMY_TS_DATAFRAME.copy()
+    data["target"] = 0.0
+    train_data, _ = data.train_test_split(prediction_length)
+    predictions = get_prediction_for_df(train_data, prediction_length=prediction_length)
+    predictions = predictions.assign(**{col: 1.0 for col in predictions.columns})
+    score = eval_metric(data=data, predictions=predictions, prediction_length=prediction_length)
+    assert not np.isinf(score)
