@@ -10,6 +10,7 @@ from autogluon.timeseries.dataset.ts_dataframe import TimeSeriesDataFrame
 from autogluon.timeseries.models.abstract import AbstractTimeSeriesModel
 from autogluon.timeseries.utils.forecast import get_forecast_horizon_index_ts_dataframe
 from autogluon.timeseries.utils.warning_filters import warning_filter
+from autogluon.timeseries.transforms.scaler import ChronosScaler
 
 logger = logging.getLogger(__name__)
 
@@ -351,3 +352,16 @@ class ChronosModel(AbstractTimeSeriesModel):
         super().score_and_cache_oof(
             val_data, store_val_score, store_predict_time, time_limit=self.time_limit, **predict_kwargs
         )
+
+    def _maybe_scale(self, data: TimeSeriesDataFrame) -> TimeSeriesDataFrame:
+        if self._get_model_params().get("add_min"):
+            self.chronos_scaler = ChronosScaler(target=self.target)
+            data = self.chronos_scaler.fit_transform(data)
+        else:
+            self.chronos_scaler = None
+        return data
+
+    def _maybe_unscale(self, predictions: TimeSeriesDataFrame) -> TimeSeriesDataFrame:
+        if self.chronos_scaler is not None:
+            predictions = self.chronos_scaler.inverse_transform(predictions)
+        return predictions

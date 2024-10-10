@@ -115,6 +115,13 @@ class LocalRobustScaler(LocalTargetScaler):
         return loc, scale
 
 
+class ChronosScaler(LocalTargetScaler):
+    def _compute_loc_scale(self, target_series: pd.Series) -> Tuple[pd.Series, pd.Series]:
+        loc = target_series.groupby(level=ITEMID, sort=False).quantile(0.05)
+        scale = None
+        return loc, scale
+
+
 AVAILABLE_SCALERS = {
     "standard": LocalStandardScaler,
     "mean_abs": LocalMeanAbsScaler,

@@ -324,6 +324,12 @@ class AbstractTimeSeriesModel(AbstractModel):
                 "as hyperparameters when initializing or use `hyperparameter_tune` instead."
             )
 
+    def _maybe_scale(self, data: TimeSeriesDataFrame) -> TimeSeriesDataFrame:
+        return data
+
+    def _maybe_unscale(self, predictions: TimeSeriesDataFrame) -> TimeSeriesDataFrame:
+        return predictions
+
     def predict(
         self,
         data: Union[TimeSeriesDataFrame, Dict[str, TimeSeriesDataFrame]],
@@ -363,12 +369,16 @@ class AbstractTimeSeriesModel(AbstractModel):
         data = self.preprocess(data, is_train=False)
         known_covariates = self.preprocess_known_covariates(known_covariates)
 
+        data = self._maybe_scale(data)
+
         # FIXME: Avoid copying covariates_regressor across processes if self._predict uses joblib.
         # FIXME: The clean solution is to convert all methods executed in parallel to @classmethod
         covariates_regressor = self.covariates_regressor
         self.covariates_regressor = None
         predictions = self._predict(data=data, known_covariates=known_covariates, **kwargs)
         self.covariates_regressor = covariates_regressor
+
+        predictions = self._maybe_unscale(predictions)
 
         # "0.5" might be missing from the quantiles if self is a wrapper (MultiWindowBacktestingModel or ensemble)
         if "0.5" in predictions.columns:
