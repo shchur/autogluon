@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Type
+from typing import Any, Dict, Type, List
 
 import numpy as np
 import pandas as pd
@@ -19,48 +19,48 @@ class AbstractStatsForecastModel(AbstractLocalModel):
         local_model_args["season_length"] = seasonal_period
         return local_model_args
 
-    def _get_model_type(self) -> Type:
+    @classmethod
+    def _get_model_type(cls) -> Type:
         raise NotImplementedError
 
-    def _get_local_model(self, local_model_args: Dict):
-        model_type = self._get_model_type()
+    @classmethod
+    def _get_local_model(cls, local_model_args: Dict):
+        model_type = cls._get_model_type()
         return model_type(**local_model_args)
 
+    @classmethod
     def _get_point_forecast(
-        self,
+        cls,
         time_series: pd.Series,
         local_model_args: Dict,
+        prediction_length: int,
     ) -> np.ndarray:
-        return self._get_local_model(local_model_args).forecast(
-            h=self.prediction_length, y=time_series.values.ravel()
-        )["mean"]
-
-    def _predict_with_local_model(
-        self,
-        time_series: pd.Series,
-        local_model_args: dict,
-    ) -> pd.DataFrame:
-        raise NotImplementedError
+        return cls._get_local_model(local_model_args).forecast(h=prediction_length, y=time_series.values.ravel())[
+            "mean"
+        ]
 
 
 class AbstractProbabilisticStatsForecastModel(AbstractStatsForecastModel):
+    @classmethod
     def _predict_with_local_model(
-        self,
+        cls,
         time_series: pd.Series,
         local_model_args: dict,
+        prediction_length: int,
+        quantile_levels: List[float],
     ) -> pd.DataFrame:
         # Code does conversion between confidence levels and quantiles
         levels = []
         quantile_to_key = {}
-        for q in self.quantile_levels:
+        for q in quantile_levels:
             level = round(abs(q - 0.5) * 200, 1)
             suffix = "lo" if q < 0.5 else "hi"
             levels.append(level)
             quantile_to_key[str(q)] = f"{suffix}-{level}"
         levels = sorted(list(set(levels)))
 
-        forecast = self._get_local_model(local_model_args).forecast(
-            h=self.prediction_length, y=time_series.values.ravel(), level=levels
+        forecast = cls._get_local_model(local_model_args).forecast(
+            h=prediction_length, y=time_series.values.ravel(), level=levels
         )
         predictions = {"mean": forecast["mean"]}
         for q, key in quantile_to_key.items():
@@ -154,7 +154,8 @@ class AutoARIMAModel(AbstractProbabilisticStatsForecastModel):
         local_model_args.setdefault("allowmean", True)
         return local_model_args
 
-    def _get_model_type(self):
+    @classmethod
+    def _get_model_type(cls):
         from statsforecast.models import AutoARIMA
 
         return AutoARIMA
@@ -222,7 +223,8 @@ class ARIMAModel(AbstractProbabilisticStatsForecastModel):
         local_model_args.setdefault("order", (1, 1, 1))
         return local_model_args
 
-    def _get_model_type(self):
+    @classmethod
+    def _get_model_type(cls):
         from statsforecast.models import ARIMA
 
         return ARIMA
@@ -265,7 +267,8 @@ class AutoETSModel(AbstractProbabilisticStatsForecastModel):
         "seasonal_period",
     ]
 
-    def _get_model_type(self):
+    @classmethod
+    def _get_model_type(cls):
         from statsforecast.models import AutoETS
 
         return AutoETS
@@ -276,10 +279,13 @@ class AutoETSModel(AbstractProbabilisticStatsForecastModel):
         local_model_args.setdefault("damped", False)
         return local_model_args
 
+    @classmethod
     def _predict_with_local_model(
-        self,
+        cls,
         time_series: pd.Series,
         local_model_args: dict,
+        prediction_length: int,
+        quantile_levels: List[float],
     ) -> pd.DataFrame:
         # Disable seasonality if time series too short for chosen season_length, season_length is too high, or
         # season_length == 1. Otherwise model will crash
@@ -287,7 +293,12 @@ class AutoETSModel(AbstractProbabilisticStatsForecastModel):
         if len(time_series) < 2 * season_length or season_length == 1:
             # changing last character to "N" disables seasonality, e.g., model="AAA" -> model="AAN"
             local_model_args["model"] = local_model_args["model"][:-1] + "N"
-        return super()._predict_with_local_model(time_series=time_series, local_model_args=local_model_args)
+        return super()._predict_with_local_model(
+            time_series=time_series,
+            local_model_args=local_model_args,
+            prediction_length=prediction_length,
+            quantile_levels=quantile_levels,
+        )
 
 
 class ETSModel(AutoETSModel):
@@ -365,7 +376,8 @@ class DynamicOptimizedThetaModel(AbstractProbabilisticStatsForecastModel):
         "seasonal_period",
     ]
 
-    def _get_model_type(self):
+    @classmethod
+    def _get_model_type(cls):
         from statsforecast.models import DynamicOptimizedTheta
 
         return DynamicOptimizedTheta
@@ -409,7 +421,8 @@ class ThetaModel(AbstractProbabilisticStatsForecastModel):
         "seasonal_period",
     ]
 
-    def _get_model_type(self):
+    @classmethod
+    def _get_model_type(cls):
         from statsforecast.models import Theta
 
         return Theta
@@ -430,12 +443,14 @@ class AbstractConformalizedStatsForecastModel(AbstractStatsForecastModel):
 
     max_num_conformalization_windows = 5
 
+    @classmethod
     def _get_nonconformity_scores(
-        self,
+        cls,
         time_series: pd.Series,
         local_model_args: Dict,
+        prediction_length: int,
     ) -> np.ndarray:
-        h = self.prediction_length
+        h = prediction_length
         y = time_series.values.ravel()
 
         if len(y) <= h:
@@ -448,27 +463,32 @@ class AbstractConformalizedStatsForecastModel(AbstractStatsForecastModel):
                 nonconf_scores[: (len(y) - 1)] = y[1:]
             return nonconf_scores.reshape(1, -1)
 
-        test_length = min(len(y) - 1, h * self.max_num_conformalization_windows)
+        test_length = min(len(y) - 1, h * cls.max_num_conformalization_windows)
         cutoffs = list(range(-h, -test_length - 1, -h))
 
         nonconf_scores = np.full((len(cutoffs), h), np.nan)
         for i, cutoff in enumerate(cutoffs, start=0):
-            forecast = self._get_point_forecast(pd.Series(y[:cutoff]), local_model_args)
+            forecast = cls._get_point_forecast(
+                pd.Series(y[:cutoff]), local_model_args, prediction_length=prediction_length
+            )
             forecast_horizon = y[cutoff:] if cutoff + h == 0 else y[cutoff : cutoff + h]
             nonconf_scores[i] = np.abs(forecast - forecast_horizon)
 
         return nonconf_scores
 
+    @classmethod
     def _predict_with_local_model(
-        self,
+        cls,
         time_series: pd.Series,
         local_model_args: dict,
+        prediction_length: int,
+        quantile_levels: List[float],
     ) -> pd.DataFrame:
-        nonconf_scores = self._get_nonconformity_scores(time_series, local_model_args).ravel()
+        nonconf_scores = cls._get_nonconformity_scores(time_series, local_model_args, prediction_length).ravel()
 
         # conformalize with naive pooling of nonconformity scores
         n = len(nonconf_scores)
-        levels = np.array(self.quantile_levels)
+        levels = np.array(quantile_levels)
         alpha = 1 - np.abs(2 * levels - 1)  # failure probabilities corresponding to quantiles
         q_sign = np.sign(2 * levels - 1)
         ehat = np.quantile(
@@ -481,7 +501,7 @@ class AbstractConformalizedStatsForecastModel(AbstractStatsForecastModel):
             method="lower",
         )
 
-        point_forecast = self._get_point_forecast(time_series, local_model_args)
+        point_forecast = cls._get_point_forecast(time_series, local_model_args, prediction_length=prediction_length)
         predictions = {
             "mean": point_forecast,
             **{str(q): point_forecast + q_sign[i] * ehat[i] for i, q in enumerate(levels)},
@@ -529,7 +549,8 @@ class AutoCESModel(AbstractProbabilisticStatsForecastModel):
         "seasonal_period",
     ]
 
-    def _get_model_type(self):
+    @classmethod
+    def _get_model_type(cls):
         from statsforecast.models import AutoCES
 
         return AutoCES
@@ -539,29 +560,27 @@ class AutoCESModel(AbstractProbabilisticStatsForecastModel):
         local_model_args.setdefault("model", "Z")
         return local_model_args
 
-    def _get_point_forecast(self, time_series: pd.Series, local_model_args: Dict):
-        # Disable seasonality if time series too short for chosen season_length or season_length == 1,
-        # otherwise model will crash
-        if len(time_series) < 5:
-            # AutoCES does not handle "tiny" datasets, fall back to naive
-            return np.full(self.prediction_length, time_series.values[-1])
-        if len(time_series) < 2 * local_model_args["season_length"] + 1 or local_model_args["season_length"] == 1:
-            local_model_args["model"] = "N"
-        return super()._get_point_forecast(time_series, local_model_args)
-
 
 class AbstractStatsForecastIntermittentDemandModel(AbstractConformalizedStatsForecastModel):
     def _update_local_model_args(self, local_model_args: Dict[str, Any]) -> Dict[str, Any]:
         _ = local_model_args.pop("seasonal_period")
         return local_model_args
 
+    @classmethod
     def _predict_with_local_model(
-        self,
+        cls,
         time_series: pd.Series,
         local_model_args: dict,
+        prediction_length: int,
+        quantile_levels: List[float],
     ) -> pd.DataFrame:
         # intermittent demand models clip their predictions at 0 or lower if the time series has lower values
-        predictions = super()._predict_with_local_model(time_series=time_series, local_model_args=local_model_args)
+        predictions = super()._predict_with_local_model(
+            time_series=time_series,
+            local_model_args=local_model_args,
+            prediction_length=prediction_length,
+            quantile_levels=quantile_levels,
+        )
         return predictions.clip(lower=min(0, time_series.min()))
 
 
@@ -591,7 +610,8 @@ class ADIDAModel(AbstractStatsForecastIntermittentDemandModel):
         This significantly speeds up fitting and usually leads to no change in accuracy.
     """
 
-    def _get_model_type(self):
+    @classmethod
+    def _get_model_type(cls):
         from statsforecast.models import ADIDA
 
         return ADIDA
@@ -622,7 +642,8 @@ class CrostonSBAModel(AbstractStatsForecastIntermittentDemandModel):
         This significantly speeds up fitting and usually leads to no change in accuracy.
     """
 
-    def _get_model_type(self):
+    @classmethod
+    def _get_model_type(cls):
         from statsforecast.models import CrostonSBA
 
         return CrostonSBA
@@ -653,7 +674,8 @@ class CrostonOptimizedModel(AbstractStatsForecastIntermittentDemandModel):
         This significantly speeds up fitting and usually leads to no change in accuracy.
     """
 
-    def _get_model_type(self):
+    @classmethod
+    def _get_model_type(cls):
         from statsforecast.models import CrostonOptimized
 
         return CrostonOptimized
@@ -684,7 +706,8 @@ class CrostonClassicModel(AbstractStatsForecastIntermittentDemandModel):
         This significantly speeds up fitting and usually leads to no change in accuracy.
     """
 
-    def _get_model_type(self):
+    @classmethod
+    def _get_model_type(cls):
         from statsforecast.models import CrostonClassic
 
         return CrostonClassic
@@ -716,7 +739,8 @@ class IMAPAModel(AbstractStatsForecastIntermittentDemandModel):
         This significantly speeds up fitting and usually leads to no change in accuracy.
     """
 
-    def _get_model_type(self):
+    @classmethod
+    def _get_model_type(cls):
         from statsforecast.models import IMAPA
 
         return IMAPA
@@ -738,7 +762,8 @@ class ZeroModel(AbstractStatsForecastIntermittentDemandModel):
         This significantly speeds up fitting and usually leads to no change in accuracy.
     """
 
-    def _get_model_type(self):
+    @classmethod
+    def _get_model_type(cls):
         # ZeroModel does not depend on a StatsForecast implementation
         raise NotImplementedError
 
@@ -746,5 +771,6 @@ class ZeroModel(AbstractStatsForecastIntermittentDemandModel):
         self,
         time_series: pd.Series,
         local_model_args: Dict,
+        prediction_length: int,
     ):
-        return np.zeros(self.prediction_length)
+        return np.zeros(prediction_length)

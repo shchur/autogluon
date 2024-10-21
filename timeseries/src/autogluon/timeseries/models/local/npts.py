@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 import pandas as pd
 
@@ -51,10 +52,13 @@ class NPTSModel(AbstractLocalModel):
         local_model_args.setdefault("num_default_time_features", 1)
         return local_model_args
 
+    @classmethod
     def _predict_with_local_model(
-        self,
+        cls,
         time_series: pd.Series,
         local_model_args: dict,
+        prediction_length: int,
+        quantile_levels: List[float],
     ) -> pd.DataFrame:
         from gluonts.model.npts import NPTSPredictor
 
@@ -65,7 +69,7 @@ class NPTSModel(AbstractLocalModel):
         ts = time_series.copy(deep=False)
         # We generate time features outside NPTSPredictor since GluonTS does not support all pandas frequencies
         future_index = get_forecast_horizon_index_single_time_series(
-            ts.index, freq=self.freq, prediction_length=self.prediction_length
+            ts.index, freq=self.freq, prediction_length=prediction_length
         )
         past_and_future_index = ts.index.union(future_index)
         time_features = get_time_features_for_frequency(self.freq)[:num_default_time_features]
@@ -79,13 +83,13 @@ class NPTSModel(AbstractLocalModel):
         dummy_freq = "S"
         ts.index = ts.index.to_period(freq=dummy_freq)
         predictor = NPTSPredictor(
-            prediction_length=self.prediction_length,
+            prediction_length=prediction_length,
             use_default_time_features=False,
             **local_model_args,
         )
         forecast = predictor.predict_time_series(ts, num_samples=num_samples, custom_features=custom_features)
         forecast_dict = {"mean": forecast.mean}
-        for q in self.quantile_levels:
+        for q in quantile_levels:
             forecast_dict[str(q)] = forecast.quantile(q)
         return pd.DataFrame(forecast_dict)
 

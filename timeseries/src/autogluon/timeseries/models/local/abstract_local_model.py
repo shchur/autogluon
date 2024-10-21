@@ -69,8 +69,8 @@ class AbstractLocalModel(AbstractTimeSeriesModel):
         else:
             raise ValueError(f"n_jobs must be a float between 0 and 1 or an integer (received n_jobs = {n_jobs})")
         # Default values, potentially overridden inside _fit()
-        self.use_fallback_model = hyperparameters.pop("use_fallback_model", True)
-        self.max_ts_length = hyperparameters.pop("max_ts_length", self.default_max_ts_length)
+        self.use_fallback_model: bool = hyperparameters.pop("use_fallback_model", True)
+        self.max_ts_length: int = hyperparameters.pop("max_ts_length", self.default_max_ts_length)
 
         super().__init__(
             path=path,
@@ -162,7 +162,17 @@ class AbstractLocalModel(AbstractTimeSeriesModel):
         try:
             with warning_filter():
                 predictions_with_flags = executor(
-                    delayed(self._predict_wrapper)(ts, end_time=end_time) for ts in all_series
+                    delayed(self._predict_wrapper)(
+                        ts,
+                        local_model_args=self._local_model_args,
+                        prediction_length=self.prediction_length,
+                        quantile_levels=self.quantile_levels,
+                        seasonal_period=self._seasonal_period,
+                        dummy_forecast=self._dummy_forecast,
+                        use_fallback_model=self.use_fallback_model,
+                        end_time=end_time,
+                    )
+                    for ts in all_series
                 )
         except TimeoutError:
             raise TimeLimitExceeded
@@ -190,38 +200,54 @@ class AbstractLocalModel(AbstractTimeSeriesModel):
             val_data, store_val_score, store_predict_time, time_limit=self.time_limit, **predict_kwargs
         )
 
-    def _predict_wrapper(self, time_series: pd.Series, end_time: Optional[float] = None) -> Tuple[pd.DataFrame, bool]:
+    @classmethod
+    def _predict_wrapper(
+        cls,
+        time_series: pd.Series,
+        local_model_args: Dict[str, Any],
+        prediction_length: int,
+        quantile_levels: List[float],
+        seasonal_period: int,
+        dummy_forecast: pd.DataFrame,
+        use_fallback_model: bool,
+        end_time: Optional[float] = None,
+    ) -> Tuple[pd.DataFrame, bool]:
         if end_time is not None and time.time() >= end_time:
             raise TimeLimitExceeded
 
         model_failed = False
         if time_series.isna().all():
-            result = self._dummy_forecast.copy()
+            result = dummy_forecast.copy()
         else:
             try:
-                result = self._predict_with_local_model(
+                result = cls._predict_with_local_model(
                     time_series=time_series,
-                    local_model_args=self._local_model_args.copy(),
+                    local_model_args=local_model_args.copy(),
+                    prediction_length=prediction_length,
+                    quantile_levels=quantile_levels,
                 )
                 if not np.isfinite(result.values).all():
                     raise RuntimeError("Forecast contains NaN or Inf values.")
             except Exception:
-                if self.use_fallback_model:
+                if use_fallback_model:
                     result = seasonal_naive_forecast(
                         target=time_series.values.ravel(),
-                        prediction_length=self.prediction_length,
-                        quantile_levels=self.quantile_levels,
-                        seasonal_period=self._seasonal_period,
+                        prediction_length=prediction_length,
+                        quantile_levels=quantile_levels,
+                        seasonal_period=seasonal_period,
                     )
                     model_failed = True
                 else:
                     raise
         return result, model_failed
 
+    @classmethod
     def _predict_with_local_model(
-        self,
+        cls,
         time_series: pd.Series,
         local_model_args: dict,
+        prediction_length: int,
+        quantile_levels: List[float],
     ) -> pd.DataFrame:
         raise NotImplementedError
 
