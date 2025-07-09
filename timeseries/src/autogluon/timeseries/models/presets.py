@@ -86,7 +86,7 @@ DEFAULT_MODEL_PRIORITY = dict(
     Zero=100,
     RecursiveTabular=90,
     DirectTabular=85,
-    PerStepTabular=70,  # TODO: Update priority
+    PerStepTabular=80,  # TODO: Update priority
     # All local models are grouped together to make sure that joblib parallel pool is reused
     NPTS=80,
     ETS=80,
@@ -169,13 +169,7 @@ def get_default_hps(key):
                     "covariate_regressor": {"model_name": "CAT", "model_hyperparameters": {"iterations": 1_000}},
                 },
             ],
-            "TiDE": {
-                "encoder_hidden_dim": 256,
-                "decoder_hidden_dim": 256,
-                "temporal_hidden_dim": 64,
-                "num_batches_per_epoch": 100,
-                "lr": 1e-4,
-            },
+            "PerStepTabular": {},
         },
     }
     return default_model_hps[key]
