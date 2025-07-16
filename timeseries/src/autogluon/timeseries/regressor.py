@@ -239,7 +239,7 @@ def get_covariate_regressor(
     if covariate_regressor is None:
         return None
     elif len(covariate_metadata.known_covariates + covariate_metadata.static_features) == 0:
-        logger.info("\tSkipping covariate_regressor since the dataset contains no covariates or static features.")
+        logger.info("\tSkipping covariate_regressor since the dataset contains no known covariates or static features.")
         return None
     else:
         if isinstance(covariate_regressor, str):
